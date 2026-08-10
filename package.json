@@ -1,0 +1,39 @@
+{
+  "name": "kioku",
+  "version": "0.1.0",
+  "description": "Claude Code / Codex の作業を Obsidian に自動記録し、夜ごとに知識へ編纂する",
+  "type": "module",
+  "bin": {
+    "kioku": "bin/kioku.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "FP-sudo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FP-sudo/kioku.git"
+  },
+  "homepage": "https://github.com/FP-sudo/kioku#readme",
+  "bugs": {
+    "url": "https://github.com/FP-sudo/kioku/issues"
+  },
+  "keywords": [
+    "obsidian",
+    "claude-code",
+    "codex",
+    "knowledge-management",
+    "second-brain"
+  ],
+  "license": "MIT"
+}
