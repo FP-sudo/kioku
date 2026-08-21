@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { claudeSettingsPath, codexHooksPath, packageRoot } from './paths.mjs';
+import { claudeSettingsPath, codexHooksPath, cliPath } from './paths.mjs';
 
 /** 自分が入れたフックだと判別するための印。 */
 export const MARKER = 'kioku.mjs';
@@ -22,7 +22,7 @@ export const MARKER = 'kioku.mjs';
  * バックスラッシュのエスケープ事故を避けられる。
  */
 export function hookCommand(phase, agent) {
-  const cli = path.join(packageRoot(), 'bin', 'kioku.mjs').replaceAll('\\', '/');
+  const cli = cliPath().replaceAll('\\', '/');
   const node = process.execPath.replaceAll('\\', '/');
   return `"${node}" "${cli}" hook ${phase} --agent ${agent}`;
 }
@@ -80,11 +80,40 @@ export function isInstalled(agent) {
   return JSON.stringify(container).includes(MARKER);
 }
 
+/** 注入済みの kioku フックのコマンド文字列を集める。 */
+export function installedHookCommands(agent) {
+  const root = readJson(targetFile(agent));
+  const found = [];
+  for (const list of Object.values(root?.hooks ?? {})) {
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) {
+      for (const h of entry.hooks ?? []) {
+        if (typeof h.command === 'string' && h.command.includes(MARKER)) found.push(h.command);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * フックのコマンド文字列から、呼ばれる CLI の場所を取り出す。
+ * 実在しないパスが刺さっていれば、記録は毎セッション黙って落ちている。
+ */
+export function cliPathInCommand(command) {
+  const quoted = command.match(/"([^"]*kioku\.mjs)"/);
+  if (quoted) return quoted[1];
+  const bare = command.match(/(\S*kioku\.mjs)/);
+  return bare ? bare[1] : null;
+}
+
 /**
  * フックを注入する。
  * 同じイベント・同じ matcher のエントリがあればその中に足し、無ければ作る。
  */
 export function installHooks(agent) {
+  // 指し先の消えた古いフックを先に片付ける。読み込みはその後でないと、
+  // 掃除の結果を取りこぼしたまま上書きしてしまう。
+  const { removed: pruned } = pruneStaleHooks(agent);
   const file = targetFile(agent);
   const root = readJson(file) ?? (agent === 'codex' ? { description: 'Codex hooks' } : {});
   const container = getHooksContainer(root, agent);
@@ -109,11 +138,30 @@ export function installHooks(agent) {
   }
 
   if (added > 0) writeJsonWithBackup(file, root);
-  return { file, added };
+  return { file, added, pruned };
 }
 
 /** 自分が入れたフックだけを取り除く。 */
 export function uninstallHooks(agent) {
+  return removeHooksWhere(agent, (h) => typeof h.command === 'string' && h.command.includes(MARKER));
+}
+
+/**
+ * 自分が入れたフックのうち、指し先が消えているものを取り除く。
+ *
+ * 旧版を別の場所に展開して使っていた人が新版で init し直すと、
+ * 古い指し先のフックが残る。放っておくと毎セッション、死んだパスを
+ * 呼びに行くフックがエラーを吐き続ける。
+ */
+export function pruneStaleHooks(agent) {
+  return removeHooksWhere(agent, (h) => {
+    if (typeof h.command !== 'string' || !h.command.includes(MARKER)) return false;
+    const cli = cliPathInCommand(h.command);
+    return Boolean(cli) && !fs.existsSync(cli);
+  });
+}
+
+function removeHooksWhere(agent, shouldRemove) {
   const file = targetFile(agent);
   const root = readJson(file);
   if (!root?.hooks) return { file, removed: 0 };
@@ -124,9 +172,7 @@ export function uninstallHooks(agent) {
     for (const entry of list) {
       if (!Array.isArray(entry.hooks)) continue;
       const before = entry.hooks.length;
-      entry.hooks = entry.hooks.filter(
-        (h) => !(typeof h.command === 'string' && h.command.includes(MARKER))
-      );
+      entry.hooks = entry.hooks.filter((h) => !shouldRemove(h));
       removed += before - entry.hooks.length;
     }
     // 空になったエントリを畳む。利用者の他の設定は残す。

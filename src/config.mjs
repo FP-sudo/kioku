@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { configPath, statePath, ensureKiokuHome } from './paths.mjs';
+import { configPath, statePath, ensureKiokuHome, invocation } from './paths.mjs';
 
 export const CONFIG_VERSION = 1;
 
@@ -81,7 +81,7 @@ export function loadConfig() {
     parsed = JSON.parse(raw);
   } catch (err) {
     throw new Error(
-      `設定ファイルが壊れています: ${configPath()}\n  ${err.message}\n  直すか、削除して kioku init をやり直してください。`
+      `設定ファイルが壊れています: ${configPath()}\n  ${err.message}\n  直すか、削除して ${invocation('init')} をやり直してください。`
     );
   }
   return merge(DEFAULT_CONFIG, parsed);
@@ -132,11 +132,11 @@ export function writeJsonAtomic(file, data) {
 export function validateConfig(config) {
   const problems = [];
   if (!config) {
-    problems.push('設定がありません。`kioku init` を実行してください。');
+    problems.push(`設定がありません。\`${invocation('init')}\` を実行してください。`);
     return problems;
   }
   if (!config.vaultDir) {
-    problems.push('vaultDir が未設定です。`kioku init` を実行してください。');
+    problems.push(`vaultDir が未設定です。\`${invocation('init')}\` を実行してください。`);
   } else if (!fs.existsSync(config.vaultDir)) {
     problems.push(`vault が見つかりません: ${config.vaultDir}`);
   }

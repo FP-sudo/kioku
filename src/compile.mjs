@@ -24,7 +24,7 @@ export async function runCompile({ flags = {} } = {}) {
   const compiler = resolveCompiler(config);
   if (!compiler) {
     warn('× 編纂に使えるエージェントが見つかりません（claude / codex のどちらかが必要です）');
-    warn('  `kioku doctor` で状況を確認してください。');
+    warn(`  \`${invocation('doctor')}\` で状況を確認してください。`);
     return 1;
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "kioku",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code / Codex の作業を Obsidian に自動記録し、夜ごとに知識へ編纂する",
   "type": "module",
   "bin": {

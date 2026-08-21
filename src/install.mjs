@@ -14,6 +14,10 @@ import {
   ensureKiokuHome,
   packageRoot,
   configPath,
+  appDir,
+  kiokuHome,
+  tilde,
+  invocation,
 } from './paths.mjs';
 import { loadConfig, saveConfig, DEFAULT_CONFIG } from './config.mjs';
 import { say, warn, log } from './log.mjs';
@@ -33,6 +37,17 @@ export async function runInit({ flags = {} } = {}) {
   const copied = seedVault(vaultDir);
   ensureKiokuHome();
 
+  // フックを張る前に本体を据え置く。フックが指すのは、以降ここになる。
+  let app;
+  try {
+    app = installApp();
+  } catch (err) {
+    warn(`× 本体の設置に失敗しました: ${err.message}`);
+    warn('  展開したフォルダから直接動かす形で続けます。');
+    warn('  この場合、フォルダを移動・削除すると記録が止まります。');
+    app = { path: packageRoot(), copied: false };
+  }
+
   const config = saveConfig({
     ...(existing ?? DEFAULT_CONFIG),
     vaultDir,
@@ -42,6 +57,7 @@ export async function runInit({ flags = {} } = {}) {
   say(`\n記録先: ${vaultDir}`);
   if (copied.length) say(`雛形を置きました（${copied.length}件）`);
   say(`設定: ${configPath()}`);
+  if (app.copied) say(`本体: ${tilde(app.path)}`);
 
   // フックは、実際に入っているエージェントにだけ入れる
   const found = detectCompilers({ refresh: true });
@@ -66,6 +82,7 @@ export async function runInit({ flags = {} } = {}) {
   for (const r of results) {
     const label = r.agent === 'claude' ? 'Claude Code' : 'Codex';
     say(r.added > 0 ? `✓ ${label} に記録フックを設定しました` : `✓ ${label} は設定済みです`);
+    if (r.pruned > 0) say(`  （指し先が消えていた古いフックを ${r.pruned} 件片付けました）`);
   }
 
   const compilerNote = found.claude
@@ -82,8 +99,16 @@ export async function runInit({ flags = {} } = {}) {
 
   say('');
   say('次にエージェントを起動した時点から記録が始まります。');
-  say('  kioku status    記録と編纂の状況を見る');
-  say('  kioku compile   溜まった記録を今すぐ編纂する');
+  say('');
+  const cmd = invocation();
+  say('様子を見たくなったら、次のように打ってください。');
+  say(`  ${cmd} status    記録と編纂の状況を見る`);
+  say(`  ${cmd} doctor    動かないときの原因切り分け`);
+  say(`  ${cmd} compile   溜まった記録を今すぐ編纂する`);
+  if (app.copied) {
+    say('');
+    say('本体は上の場所に控えました。展開したフォルダはもう消してかまいません。');
+  }
   return 0;
 }
 
@@ -103,9 +128,9 @@ export async function runUninstall({ flags = {} } = {}) {
   if (total === 0) say('外すフックはありませんでした。');
 
   say('');
-  say('vault と設定はそのまま残しています。');
+  say('記録と設定はそのまま残しています。');
   say(`  記録: ${loadConfig()?.vaultDir ?? '(未設定)'}`);
-  say(`  設定: ${configPath()}`);
+  say(`  設定と本体: ${tilde(kiokuHome())}`);
   if (!flags.yes) say('完全に消す場合は、この2つを手で削除してください。');
   return 0;
 }
@@ -188,6 +213,56 @@ function seedVault(vaultDir) {
     }
   }
   return copied;
+}
+
+// --- 本体の設置 -----------------------------------------------------------
+
+/** app に置くもの。テストと .git は要らない。 */
+const APP_CONTENTS = ['bin', 'src', 'templates', 'package.json', 'README.md', 'LICENSE'];
+
+/**
+ * kioku 本体を ~/.kioku/app へ複製する。
+ *
+ * 差し替えは staging に組んでから rename で入れ替える。コピーの途中で失敗しても、
+ * 既に動いている app を半端な状態にしない。フックは毎セッション走るので、
+ * ここが壊れると利用者は毎回エラーを見ることになる。
+ */
+function installApp() {
+  const from = packageRoot();
+  const to = appDir();
+  if (path.resolve(from) === path.resolve(to)) return { path: to, copied: false };
+
+  const staging = `${to}.new-${process.pid}`;
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
+  for (const name of APP_CONTENTS) {
+    const src = path.join(from, name);
+    if (fs.existsSync(src)) copyTree(src, path.join(staging, name));
+  }
+
+  const previous = `${to}.old-${process.pid}`;
+  if (fs.existsSync(to)) fs.renameSync(to, previous);
+  try {
+    fs.renameSync(staging, to);
+  } catch (err) {
+    if (fs.existsSync(previous)) fs.renameSync(previous, to);
+    fs.rmSync(staging, { recursive: true, force: true });
+    throw err;
+  }
+  fs.rmSync(previous, { recursive: true, force: true });
+  log(`本体を設置: ${from} → ${to}`);
+  return { path: to, copied: true };
+}
+
+function copyTree(from, to) {
+  if (fs.statSync(from).isDirectory()) {
+    fs.mkdirSync(to, { recursive: true });
+    for (const name of fs.readdirSync(from)) {
+      copyTree(path.join(from, name), path.join(to, name));
+    }
+  } else {
+    fs.copyFileSync(from, to);
+  }
 }
 
 function normalizeCompilerFlag(v) {

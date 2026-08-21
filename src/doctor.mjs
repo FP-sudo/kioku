@@ -6,10 +6,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, validateConfig } from './config.mjs';
-import { configPath, kiokuHome, spoolDir, logPath } from './paths.mjs';
+import { configPath, kiokuHome, spoolDir, logPath, appDir, packageRoot, invocation } from './paths.mjs';
 import { say, warn } from './log.mjs';
 import { detectCompilers } from './agent.mjs';
-import { isInstalled, targetFile } from './hooks.mjs';
+import { isInstalled, targetFile, installedHookCommands, cliPathInCommand } from './hooks.mjs';
 import { loadState } from './config.mjs';
 
 export async function runDoctor() {
@@ -30,7 +30,7 @@ export async function runDoctor() {
   }
 
   if (!config) {
-    add(false, '設定ファイル', `まだありません。\`kioku init\` を実行してください（${configPath()}）`);
+    add(false, '設定ファイル', `まだありません。\`${invocation('init')}\` を実行してください（${configPath()}）`);
   } else {
     const problems = validateConfig(config);
     add(problems.length === 0, `設定ファイル（${configPath()}）`, problems.join(' / ') || null);
@@ -47,10 +47,10 @@ export async function runDoctor() {
 
       const dailyDir = path.join(config.vaultDir, 'daily');
       const hasDaily = fs.existsSync(dailyDir);
-      add(hasDaily, 'daily フォルダ', hasDaily ? null : '`kioku init` で作られます');
+      add(hasDaily, 'daily フォルダ', hasDaily ? null : `\`${invocation('init')}\` で作られます`);
 
       const schema = fs.existsSync(path.join(config.vaultDir, 'SCHEMA.md'));
-      add(schema, 'SCHEMA.md（編纂のルール）', schema ? null : '無いと編纂の品質が落ちます。`kioku init` で置けます');
+      add(schema, 'SCHEMA.md（編纂のルール）', schema ? null : `無いと編纂の品質が落ちます。\`${invocation('init')}\` で置けます`);
     }
   }
 
@@ -77,7 +77,33 @@ export async function runDoctor() {
       add(false, `${label} のフック`, err.message);
       continue;
     }
-    add(installed, `${label} の記録フック（${file}）`, installed ? null : '`kioku init` で設定できます');
+    add(installed, `${label} の記録フック（${file}）`, installed ? null : `\`${invocation('init')}\` で設定できます`);
+
+    // フックが指す先が消えていないか。ZIP を展開したフォルダを片付けると、ここが折れる。
+    if (!installed) continue;
+    const missing = installedHookCommands(agent)
+      .map((cmd) => cliPathInCommand(cmd))
+      .filter((p) => p && !fs.existsSync(p));
+    if (missing.length) {
+      const gone = [...new Set(missing)];
+      add(
+        false,
+        `${label} のフックが指す先`,
+        `${gone.join(' / ')} がありません。` +
+          `kioku 本体が移動または削除されています。この状態では記録が毎回落ちます。` +
+          `\n     → \`${invocation('init')}\` をやり直すと張り直せます` +
+          `（それも無ければ ZIP を展開し直してください）`
+      );
+    }
+  }
+
+  // --- 本体 ---
+  const appCli = path.join(appDir(), 'bin', 'kioku.mjs');
+  if (fs.existsSync(appCli)) {
+    add(true, `本体: ${appDir()}`, null);
+  } else {
+    add(true, `本体: ${packageRoot()}（展開先から直接実行中）`,
+      `このフォルダを移動・削除すると記録が止まります。\`${invocation('init')}\` を実行すると ${appDir()} に控えます`);
   }
 
   // --- 状態 ---

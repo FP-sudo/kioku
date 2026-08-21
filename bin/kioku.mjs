@@ -6,7 +6,11 @@
 
 import { warn, say } from '../src/log.mjs';
 
-const USAGE = `kioku — 作業を Obsidian に自動記録し、知識へ編纂する
+const usage = (cmd) => `kioku — 作業を Obsidian に自動記録し、知識へ編纂する
+
+呼び方:
+  ${cmd} <コマンド>
+  以下は kioku と略記します。毎回打つのが面倒なら、README のエイリアス設定を見てください。
 
 使い方:
   kioku init                 vault を決めてフックを設定する（最初に1回）
@@ -72,14 +76,16 @@ async function main() {
   }
 
   if (!command || command === 'help' || flags.help) {
-    say(USAGE);
+    const { invocation } = await import('../src/paths.mjs');
+    say(usage(invocation()));
     return 0;
   }
 
   const loader = COMMANDS[command];
   if (!loader) {
+    const { invocation } = await import('../src/paths.mjs');
     warn(`知らないコマンドです: ${command}\n`);
-    warn(USAGE);
+    warn(usage(invocation()));
     return 1;
   }
 

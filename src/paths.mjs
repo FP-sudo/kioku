@@ -15,6 +15,14 @@ export function kiokuHome() {
   return process.env.KIOKU_HOME || path.join(homeDir(), '.kioku');
 }
 
+/**
+ * init が kioku 本体を据え置く場所。
+ * ZIP で配ると「Downloads で展開して、あとで片付ける」が普通に起きる。
+ * フックに展開先の絶対パスを焼くと、そこで記録が丸ごと止まるので、
+ * 実体をここへ複製し、フックはこちらを指す。展開したフォルダは捨ててよい。
+ */
+export const appDir = () => path.join(kiokuHome(), 'app');
+
 export const configPath = () => path.join(kiokuHome(), 'config.json');
 export const statePath = () => path.join(kiokuHome(), 'state.json');
 export const spoolDir = () => path.join(kiokuHome(), 'spool');
@@ -97,6 +105,35 @@ export function ensureKiokuHome() {
   fs.mkdirSync(kiokuHome(), { recursive: true });
   fs.mkdirSync(spoolDir(), { recursive: true });
   return kiokuHome();
+}
+
+/**
+ * フックや案内文から呼ぶ CLI の場所。
+ *
+ * init 済みなら ~/.kioku/app を指す。ZIP を展開したフォルダを移動・削除しても
+ * 記録が止まらないようにするため。app が無いのは開発中にリポジトリから
+ * 直接動かしている場合なので、そのときは自分自身を指す。
+ */
+export function cliPath() {
+  const installed = path.join(appDir(), 'bin', 'kioku.mjs');
+  return fs.existsSync(installed) ? installed : path.join(packageRoot(), 'bin', 'kioku.mjs');
+}
+
+/** ホーム配下なら ~ に畳んで表示する。Windows では畳まない（cmd が ~ を解さない）。 */
+export function tilde(p) {
+  if (process.platform === 'win32') return p;
+  const home = homeDir();
+  return p.startsWith(home + path.sep) ? p.replace(home, '~') : p;
+}
+
+/**
+ * 案内文に出す、実際に打てるコマンド。
+ * kioku は PATH に入れないので、案内も node 経由の形で揃える。
+ * ここが実態とずれると、利用者は書いてあるとおり打って command not found を見る。
+ */
+export function invocation(sub = '') {
+  const base = `node ${tilde(cliPath())}`;
+  return sub ? `${base} ${sub}` : base;
 }
 
 /** このパッケージ自身の場所（templates/ や docs/ を読むため）。 */

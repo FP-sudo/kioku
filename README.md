@@ -51,7 +51,7 @@ concepts/utage-64kb-limit.md
 
 ## 必要なもの
 
-- Node.js 18 以上
+- Node.js 18 以上（`node --version` で確認できます。無ければ https://nodejs.org/ から入れてください）
 - Claude Code または Codex CLI（片方でよい）
 - Obsidian（無くても動きます。中身はただの Markdown フォルダなので）
 
@@ -61,19 +61,46 @@ concepts/utage-64kb-limit.md
 
 ## インストール
 
+配布された ZIP を、どこでもよいので展開します。展開したフォルダで1回だけ実行してください。
+
 ```bash
-git clone https://github.com/<your-account>/kioku.git
-cd kioku
 node bin/kioku.mjs init
 ```
 
-`init` は3つのことをします。
+`init` は4つのことをします。
 
 1. 記録先の vault を決める（Obsidian が入っていれば既存の vault を候補に出します）
 2. 雛形を置く（既にあるファイルには触りません）
-3. Claude Code と Codex にフックを設定する
+3. 本体を `~/.kioku/app` に控える
+4. Claude Code と Codex にフックを設定する
+
+3 があるので、**展開したフォルダは init のあと消してかまいません。** フックが呼ぶのは
+`~/.kioku/app` の方です。Downloads で展開してあとで片付ける、をしても記録は止まりません。
 
 次にエージェントを起動した時点から、記録が始まります。
+
+### コマンドを短く打てるようにする（任意）
+
+kioku は PATH を書き換えません。そのままだと毎回こう打つことになります。
+
+```bash
+node ~/.kioku/app/bin/kioku.mjs status
+```
+
+面倒なら、`~/.zshrc`（bash なら `~/.bashrc`）にエイリアスを足してください。
+
+```bash
+alias kioku='node ~/.kioku/app/bin/kioku.mjs'
+```
+
+Windows の PowerShell なら、プロファイル（`$PROFILE`）に関数を1つ。
+
+```powershell
+function kioku { node "$HOME\.kioku\app\bin\kioku.mjs" @args }
+```
+
+**以降このドキュメントでは `kioku status` のように略記します。** エイリアスを作らない場合は、
+`kioku` の部分を `node ~/.kioku/app/bin/kioku.mjs` に読み替えてください。
 
 ---
 
@@ -90,6 +117,12 @@ kioku compile    # 溜まった記録を今すぐ編纂する
 ```
 
 外すときは `kioku uninstall`。自分が入れたフックだけを取り除き、あなたが元から使っていたフックには手を出しません。
+
+### 新しい版が届いたら
+
+新しい ZIP を展開して、そのフォルダで `node bin/kioku.mjs init` をもう一度実行してください。
+`~/.kioku/app` が入れ替わり、フックも張り直されます。設定（`~/.kioku/config.json`）と
+これまでの記録はそのまま残ります。古い展開フォルダは消してかまいません。
 
 ---
 
@@ -222,6 +255,14 @@ config.toml の MCP サーバーを全部立ち上げようとするため、到
 
 **Cursor は対応していますか**
 していません。Claude Code と Codex のみです。
+
+**エージェントの起動時にエラーが出るようになりました**
+`kioku doctor` を実行してください。`~/.kioku/app` が消えている場合は「フックが指す先」の項が
+赤くなり、直し方が出ます。ZIP を展開し直して `node bin/kioku.mjs init` で戻ります。
+
+**それでも分からないとき**
+`kioku doctor` の出力をそのまま須藤（sudo@forestpub.jp）に送ってください。
+どこで止まっているかは、たいていその出力に出ています。
 
 ---
 

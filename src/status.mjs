@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, loadState } from './config.mjs';
-import { spoolDir } from './paths.mjs';
+import { spoolDir, invocation } from './paths.mjs';
 import { say, warn } from './log.mjs';
 import { listDailyDates, localDateString, addDays } from './daily.mjs';
 import { resolveCompiler } from './agent.mjs';
@@ -11,7 +11,7 @@ import { resolveCompiler } from './agent.mjs';
 export async function runStatus() {
   const config = loadConfig();
   if (!config?.vaultDir) {
-    warn('まだセットアップされていません。`kioku init` を実行してください。');
+    warn(`まだセットアップされていません。\`${invocation('init')}\` を実行してください。`);
     return 1;
   }
 
@@ -46,7 +46,7 @@ export async function runStatus() {
   const pending = countPending(config, state, dates);
   if (pending.length) {
     say(`  未編纂: ${pending.length}日（${pending.slice(0, 5).join('、')}${pending.length > 5 ? ' ほか' : ''}）`);
-    say('  → `kioku compile` で今すぐ編纂できます');
+    say(`  → \`${invocation('compile')}\` で今すぐ編纂できます`);
   } else {
     say('  未編纂の記録はありません');
   }
