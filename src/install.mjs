@@ -239,6 +239,11 @@ function installApp() {
     const src = path.join(from, name);
     if (fs.existsSync(src)) copyTree(src, path.join(staging, name));
   }
+  // コピー元を読み違えると空の app ができ、フックが展開フォルダを指したままになる。入れ替える前に止める
+  if (!fs.existsSync(path.join(staging, 'bin', 'kioku.mjs'))) {
+    fs.rmSync(staging, { recursive: true, force: true });
+    throw new Error(`本体を ${from} から控えられませんでした。展開したフォルダで実行しているか確かめてください。`);
+  }
 
   const previous = `${to}.old-${process.pid}`;
   if (fs.existsSync(to)) fs.renameSync(to, previous);

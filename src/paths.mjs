@@ -5,6 +5,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export function homeDir() {
   return os.homedir();
@@ -138,10 +139,7 @@ export function invocation(sub = '') {
 
 /** このパッケージ自身の場所（templates/ や docs/ を読むため）。 */
 export function packageRoot() {
-  const here = path.dirname(new URL(import.meta.url).pathname);
-  // Windows では /C:/... の形で来るので先頭のスラッシュを落とす
-  const normalized = process.platform === 'win32' && /^\/[A-Za-z]:/.test(here)
-    ? here.slice(1)
-    : here;
-  return path.resolve(normalized, '..');
+  // URL の pathname は日本語などを %E6... のまま返すので、fileURLToPath で実際のパスに戻す
+  // （Windows の /C:/... もここで C:\... になる）
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 }

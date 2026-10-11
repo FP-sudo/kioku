@@ -269,7 +269,7 @@ config.toml の MCP サーバーを全部立ち上げようとするため、到
 ## 開発
 
 ```bash
-node --test          # テスト（40件）
+node --test          # テスト
 ```
 
 ## ライセンス
